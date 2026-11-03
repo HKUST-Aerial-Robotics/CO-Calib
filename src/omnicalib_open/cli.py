@@ -75,10 +75,15 @@ def run_main(argv: list[str] | None = None) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from .masking import add_arguments, generate
+
     parser = argparse.ArgumentParser(prog="omnicalib")
     subparsers = parser.add_subparsers(dest="command", required=True)
     _add_run_arguments(subparsers.add_parser("run", help="run detector, Datawash, and Kalibr"))
+    add_arguments(subparsers.add_parser("mask", help="generate persistent dark-border masks"))
     args = parser.parse_args(argv)
     if args.command == "run":
         return _run_from_args(args)
+    if args.command == "mask":
+        return generate(args)
     raise RuntimeError(f"Unsupported command: {args.command}")

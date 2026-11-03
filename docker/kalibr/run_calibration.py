@@ -23,7 +23,6 @@ def main() -> int:
     parser.add_argument("--target", required=True, type=Path)
     parser.add_argument("--detector", type=normalize_detector_name, default="nn")
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--robust-width", type=float, default=1.0)
     parser.add_argument("extra", nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
@@ -66,12 +65,6 @@ def main() -> int:
         if minimum_flag in help_text:
             detector_arguments.extend([minimum_flag, "4"])
 
-    robust_arguments: list[str] = []
-    if "--use-huber" in help_text:
-        robust_arguments.append("--use-huber")
-        if "--huber-width" in help_text:
-            robust_arguments.extend(["--huber-width", str(args.robust_width)])
-
     output_arguments = ["--dont-show-report"] if "--dont-show-report" in help_text else []
 
     command = [
@@ -85,7 +78,6 @@ def main() -> int:
         "--target",
         str(args.target.resolve()),
         *detector_arguments,
-        *robust_arguments,
         *output_arguments,
         *args.extra,
     ]

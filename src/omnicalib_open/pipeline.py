@@ -25,6 +25,7 @@ from .preprocess import compute_resize_plan, remap_points_to_original, resize_im
 from .quality import RadialSpanNormalizer, build_camera_mask, evaluate_observation
 from .selection import select_groups
 from .sources import all_records, decode_frame, load_frame_groups
+from .subpixel import SUBPIXEL, refine_points
 
 
 _DETECTOR_MIN_SIDE = 720
@@ -50,6 +51,7 @@ def detect_groups(
         inference_image = resize_image(image, plan)
         output = detector.detect(inference_image)
         points = remap_points_to_original(np.asarray(output.points_xy, dtype=np.float32), plan)
+        points = refine_points(image, points)
         records.append(
             DetectionRecord(
                 camera_id=frame.camera_id,
@@ -249,6 +251,8 @@ def run_datawash(
             expected_detector=detector_name,
         )
         cached_threshold = float(manifest["confidence_threshold"])
+        if detector_name == "nn" and manifest.get("subpixel") != SUBPIXEL:
+            raise ValueError("NN-Detector cache must contain the current original-image subpixel refinement")
         if abs(cached_threshold - config.detector_confidence) > 1e-9:
             raise ValueError(
                 f"Cache confidence threshold {cached_threshold} does not match config {config.detector_confidence}"
@@ -262,6 +266,7 @@ def run_datawash(
         confidence_threshold=config.detector_confidence,
         camera_ids=rig.camera_ids,
         detector=detector_name,
+        subpixel=SUBPIXEL if detector_name == "nn" else None,
         overwrite=overwrite,
     )
     masks, radial_normalizers = _build_masks(groups, rig)
@@ -286,6 +291,7 @@ def run_datawash(
         confidence_threshold=config.detector_confidence,
         camera_ids=rig.camera_ids,
         detector=detector_name,
+        subpixel=SUBPIXEL if detector_name == "nn" else None,
         overwrite=overwrite,
     )
     clean_bag = write_clean_ros1_bag(
@@ -303,6 +309,7 @@ def run_datawash(
         "input": str(Path(source).resolve()),
         "camera_ids": list(rig.camera_ids),
         "detector": detector_name,
+        "subpixel": dict(SUBPIXEL) if detector_name == "nn" else None,
         "execution_providers": execution_providers,
         "source_groups": len(groups),
         "source_images": len(all_records(groups)),

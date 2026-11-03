@@ -116,8 +116,6 @@ def parseArgs():
     outlierSettings.add_argument('--no-final-filtering', action='store_false', default=True, dest='allowEndFiltering', help='Disable filtering after all views have been processed.')
     outlierSettings.add_argument('--min-views-outlier', type=int, default=20, dest='minViewOutlier', help='Number of raw views to initialize statistics (default: %(default)s)')
     outlierSettings.add_argument('--use-blakezisserman', action='store_true', dest='doBlakeZisserman', help='Enable the Blake-Zisserman m-estimator')
-    outlierSettings.add_argument('--use-huber', action='store_true', dest='doHuber', help='Enable Huber m-estimator on reprojection errors')
-    outlierSettings.add_argument('--huber-width', type=float, default=1.0, dest='huberWidth', help='Huber width in normalized reprojection-error units (default: %(default)s)')
     outlierSettings.add_argument('--plot-outliers', action='store_true', dest='doPlotOutliers', help='Plot the detect outliers during extraction (this could be slow)')
 
     nnSettings = parser.add_argument_group('NN-Detector cache injection (optional)')
@@ -747,10 +745,7 @@ def main():
             print("initializing calibrator")
             if parsed.fixIntrinsics:
                 print("Fixing camera projection/distortion parameters during baseline and batch optimization.")
-            reprojection_mest = 'huber' if parsed.doHuber else 'none'
-            if parsed.doHuber and parsed.doBlakeZisserman:
-                raise RuntimeError('Choose only one reprojection M-estimator: --use-huber or --use-blakezisserman')
-            calibrator = kcc.CameraCalibration(cameraList, baseline_guesses, verbose=parsed.verbose, useBlakeZissermanMest=parsed.doBlakeZisserman, fixIntrinsics=parsed.fixIntrinsics, reprojectionMEstimator=reprojection_mest, huberWidth=parsed.huberWidth)
+            calibrator = kcc.CameraCalibration(cameraList, baseline_guesses, verbose=parsed.verbose, useBlakeZissermanMest=parsed.doBlakeZisserman, fixIntrinsics=parsed.fixIntrinsics)
             options = calibrator.estimator.getOptions()
             options.infoGainDelta = parsed.miTol
             options.checkValidity = True
@@ -1017,7 +1012,7 @@ def main():
                         removeCount = sum([len(removelist) for cidx, removelist in cornerRemovalList_allCams])
                         if removeCount>0:
                             original_batch = calibrator.views[batch_id]
-                            new_batch = kcc.removeCornersFromBatch(original_batch, cornerRemovalList_allCams, useBlakeZissermanMest=parsed.doBlakeZisserman, reprojectionMEstimator=('huber' if parsed.doHuber else 'none'), huberWidth=parsed.huberWidth)
+                            new_batch = kcc.removeCornersFromBatch(original_batch, cornerRemovalList_allCams, useBlakeZissermanMest=parsed.doBlakeZisserman)
                             
                             #replace the original batch with the corrected
                             calibrator.estimator.removeBatch( calibrator.views[batch_id] )

@@ -6,6 +6,8 @@
 
 OmniCalib Open 面向任意数量相机，自动完成输入识别、标定板检测、Datawash、ROS1 标准标定 bag 生成和 Kalibr 标定。
 
+默认 NN-Detector 使用 Task13 权重，并在原图上进行 `cornerSubPix` 细化（窗口半径5、最多30次迭代、精度阈值0.001）。Datawash 和标定共用细化后的角点，置信度保留网络原值。选帧采用开源 CO-Calib 实现；Kalibr 保留随机处理顺序和内部重启策略，不固定随机种子、不增加外层失败补跑。
+
 用户只需要提供：
 
 - 图像序列、ROS1 bag 或 ROS2 bag
@@ -24,14 +26,13 @@ conda env create -f environment.yml
 conda activate omnicalib-open
 ```
 
-拉取项目发布的 Kalibr 镜像，并设置为工具使用的默认名称：
+拉取项目提供的 Kalibr 镜像，CO-Calib 默认直接使用该镜像：
 
 ```bash
 docker pull hkustswarm/co-calib:v1.0
-docker tag hkustswarm/co-calib:v1.0 omnicalib-kalibr:latest
 ```
 
-普通用户不需要编译 Kalibr。
+普通用户不需要编译 Kalibr、重新打标签或挂载本地后端代码。
 
 ## 2. 一键标定
 
@@ -267,3 +268,28 @@ Kalibr 中的 `incremental_calibration` 和 `incremental_calibration_python`
 组件声明使用 LGPLv3，并继续受 LGPLv3 约束。完整分发声明和各组件许可条款见
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)、
 [`vendor/kalibr/LICENSE`](vendor/kalibr/LICENSE) 和 [`LICENSES/`](LICENSES/)。
+
+## 7. 自动生成镜头黑边 Mask
+
+从包含运动的标定图像序列、ROS1 bag 或 ROS2 bag，为每个相机生成 mask：
+
+```bash
+omnicalib mask \
+  --input /path/to/sequence_or_bag \
+  --rig /path/to/rig.yaml \
+  --output /path/to/masks \
+  --max-frames 300 \
+  --dark-threshold 45 \
+  --texture-threshold 5 \
+  --persistence 0.95 \
+  --feature-rate 0.01 \
+  --margin 2
+```
+
+工具沿每路图像序列均匀采样。只有在至少 95% 的采样帧中偏暗、局部纹理较弱、与图像边界连通且没有重复 Shi–Tomasi 角点的区域，才会被遮掉。额外扩展 2 像素的边缘，同时保护重复出现的角点。无需 GPU 或新增依赖。
+
+输出包括 `camN_mask.png`（uint8：**255 保留，0 排除**）、各相机叠加预览、时间平均图、暗像素频率图、`overview.jpg` 和 `summary.json`。Mask 与原图分辨率一致。输出目录必须为空；每个相机至少需要 10 帧，推荐使用 300 帧内容有变化的图像。
+
+`--dark-threshold` 是 8 位灰度亮度阈值；`--texture-threshold` 是 7 x 7 邻域灰度标准差上限；`--feature-rate` 表示角点出现达到该比例时保护其邻域。提高亮度/纹理阈值或降低持续比例，会使遮罩更激进。使用前应检查叠加图，尤其是迁移到其他数据时。静止的深色遮挡物可能被误认为镜筒黑边；没有检测到角点不代表区域一定不可用。
+
+此命令负责导出 mask，标定与 Datawash 尚未自动读取它们。特征跟踪应将 PNG 作为检测掩膜使用；图像置黑适合预览，但可能在遮罩边界引入人工边缘。

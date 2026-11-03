@@ -14,11 +14,11 @@ from .rig import load_rig, require_kalibr_models
 from .sources import detect_source_type, load_frame_groups
 
 
-DEFAULT_KALIBR_IMAGE = "omnicalib-kalibr:latest"
+DEFAULT_KALIBR_IMAGE = "hkustswarm/co-calib:v1.0"
 
 
 def bundled_nn_model() -> Path:
-    return Path(__file__).resolve().parents[2] / "models" / "nn_detector_aprilgrid_6x6.onnx"
+    return Path(__file__).resolve().parents[2] / "models" / "nn_detector_task13_aprilgrid_6x6.onnx"
 
 
 def default_output_dir(source: str | Path) -> Path:

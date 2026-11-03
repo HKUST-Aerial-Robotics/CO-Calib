@@ -23,6 +23,8 @@ English | [简体中文](README.zh-CN.md)
 
 CO-Calib supports rigs with any number of cameras. It automatically detects the input format, detects the calibration target, runs Datawash, generates a standard ROS1 calibration bag, and launches Kalibr calibration.
 
+The default NN-Detector uses Task13 weights and refines its coordinates on the original image with `cornerSubPix` (window radius 5, 30 iterations, epsilon 0.001). Datawash and calibration use the same refined points and original network confidence. Selection follows the public CO-Calib implementation. Kalibr retains its random processing order and internal restart policy, with no fixed seed or outer failure retries.
+
 Users only need to provide:
 
 - An image sequence, ROS1 bag, or ROS2 bag
@@ -41,14 +43,13 @@ conda env create -f environment.yml
 conda activate omnicalib-open
 ```
 
-Pull the published Kalibr image and assign the default image name used by OmniCalib:
+Pull the provided Kalibr image. CO-Calib uses this image directly:
 
 ```bash
 docker pull hkustswarm/co-calib:v1.0
-docker tag hkustswarm/co-calib:v1.0 omnicalib-kalibr:latest
 ```
 
-Regular users do not need to compile Kalibr.
+Regular users do not need to compile Kalibr, retag the image, or mount local backend code.
 
 ## 2. One-command Calibration
 
@@ -300,3 +301,28 @@ components declare LGPLv3 terms and remain under LGPLv3. See
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md),
 [`vendor/kalibr/LICENSE`](vendor/kalibr/LICENSE), and [`LICENSES/`](LICENSES/)
 for the complete distribution notices and component-specific terms.
+
+## 7. Automatic Lens-border Masks
+
+Generate one mask per camera from a moving calibration sequence, ROS1 bag, or ROS2 bag:
+
+```bash
+omnicalib mask \
+  --input /path/to/sequence_or_bag \
+  --rig /path/to/rig.yaml \
+  --output /path/to/masks \
+  --max-frames 300 \
+  --dark-threshold 45 \
+  --texture-threshold 5 \
+  --persistence 0.95 \
+  --feature-rate 0.01 \
+  --margin 2
+```
+
+The tool samples frames uniformly across each camera stream. A pixel is excluded if it is dark and has low local texture in at least 95% of sampled frames, belongs to a region connected to the image border, and lacks repeated Shi-Tomasi corner detections. A two-pixel margin extends the excluded border while protecting repeated corners. No GPU or new dependencies are required.
+
+Outputs include `camN_mask.png` (uint8: **255 = keep, 0 = exclude**), per-camera overlays, temporal mean images, dark-frequency maps, `overview.jpg`, and `summary.json`. Masks preserve the original image dimensions. Use an empty output directory. At least 10 frames per camera are required; 300 varied frames are recommended.
+
+`--dark-threshold` is an 8-bit grayscale threshold; `--texture-threshold` limits grayscale standard deviation in a 7 x 7 neighborhood. `--feature-rate` protects neighborhoods with corners in at least this fraction of frames. Increasing the brightness/texture thresholds or decreasing persistence produces a less conservative mask. Review the overlays, especially when moving masks to another recording. A stationary dark occluder can look like a lens border; missing corners alone do not prove an area is unusable.
+
+This command exports masks; calibration and Datawash do not automatically consume these files. Feature trackers should use the PNG as their detection mask. Zeroing pixels is useful for previews but can introduce artificial edges at the mask boundary.

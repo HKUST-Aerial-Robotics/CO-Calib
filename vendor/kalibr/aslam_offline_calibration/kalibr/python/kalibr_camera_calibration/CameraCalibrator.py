@@ -260,7 +260,7 @@ class CalibrationTarget(object):
 
 class CalibrationTargetOptimizationProblem(ic.CalibrationOptimizationProblem):        
     @classmethod
-    def fromTargetViewObservations(cls, cameras, target, baselines, timestamp, T_tc_guess, rig_observations, useBlakeZissermanMest=True, fixIntrinsics=False, reprojectionMEstimator='none', huberWidth=1.0):
+    def fromTargetViewObservations(cls, cameras, target, baselines, timestamp, T_tc_guess, rig_observations, useBlakeZissermanMest=False, fixIntrinsics=False, reprojectionMEstimator='huber', huberWidth=1.0):
         rval = CalibrationTargetOptimizationProblem()        
 
         #store the arguements in case we want to rebuild a modified problem
@@ -271,7 +271,7 @@ class CalibrationTargetOptimizationProblem(ic.CalibrationOptimizationProblem):
         rval.T_tc_guess = T_tc_guess
         rval.rig_observations = rig_observations
         rval.fixIntrinsics = fixIntrinsics
-        rval.reprojectionMEstimator = reprojectionMEstimator
+        rval.reprojectionMEstimator = 'blake' if useBlakeZissermanMest else reprojectionMEstimator
         rval.huberWidth = huberWidth
         
         # 1. Create a design variable for this pose
@@ -342,7 +342,7 @@ class CalibrationTargetOptimizationProblem(ic.CalibrationOptimizationProblem):
         sm.logDebug("Adding a view with {0} cameras and {1} error terms".format(len(cams_in_view), rerr_cnt))
         return rval
 
-def removeCornersFromBatch(batch, camId_cornerIdList_tuples, useBlakeZissermanMest=True, reprojectionMEstimator='none', huberWidth=1.0):
+def removeCornersFromBatch(batch, camId_cornerIdList_tuples, useBlakeZissermanMest=False, reprojectionMEstimator='huber', huberWidth=1.0):
     #translate (camid,obs) tuple to dict
     obsdict=dict()
     for cidx, obs in batch.rig_observations:
@@ -371,7 +371,7 @@ def removeCornersFromBatch(batch, camId_cornerIdList_tuples, useBlakeZissermanMe
     return new_problem
         
 class CameraCalibration(object):
-    def __init__(self, cameras, baseline_guesses, estimateLandmarks=False, verbose=False, useBlakeZissermanMest=True, fixIntrinsics=False, reprojectionMEstimator='none', huberWidth=1.0):
+    def __init__(self, cameras, baseline_guesses, estimateLandmarks=False, verbose=False, useBlakeZissermanMest=False, fixIntrinsics=False, reprojectionMEstimator='huber', huberWidth=1.0):
         self.cameras = cameras
         self.useBlakeZissermanMest = useBlakeZissermanMest
         self.reprojectionMEstimator = 'blake' if useBlakeZissermanMest else reprojectionMEstimator

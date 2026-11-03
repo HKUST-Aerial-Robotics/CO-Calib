@@ -46,6 +46,7 @@ def write_cache(
     confidence_threshold: float,
     camera_ids: Iterable[str],
     detector: str = "nn",
+    subpixel: dict | None = None,
     overwrite: bool = False,
 ) -> Path:
     output = Path(path).resolve()
@@ -89,6 +90,7 @@ def write_cache(
         "corner_order": "tag-major; model-native BR,BL,TL,TR",
         "record_count": len(rows),
         "arrays": "observations.npz",
+        "subpixel": subpixel,
     }
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return output
@@ -110,7 +112,9 @@ def read_cache(
         raise ValueError(f"Detection cache uses {detector}, expected {expected_detector}")
     if expected_model is not None and manifest.get("model_sha256") != sha256_file(expected_model):
         raise ValueError("NN-Detector cache model hash does not match the requested model")
-    with np.load(cache_path / str(manifest["arrays"]), allow_pickle=False) as arrays:
+    with np.load(cache_path / str(manifest["arrays"]), allow_pickle=False) as archive:
+        # NPZ members are decompressed on every access; materialize each once.
+        arrays = {key: archive[key] for key in archive.files}
         rows = [
             DetectionRecord(
                 camera_id=str(arrays["camera_id"][index]),
